@@ -12,8 +12,6 @@ import socket
 import sys
 import threading
 import time
-import urllib
-import urllib2
 
 try:
     from json import read as json_decode, write as json_encode
@@ -22,6 +20,14 @@ except ImportError:
         from json import loads as json_decode, dumps as json_encode
     except ImportError:
         from simplejson import loads as json_decode, dumps as json_encode
+
+try:
+    from urllib2 import build_opener, HTTPRedirectHandler, Request, HTTPError
+    from urllib import urlencode, urlopen
+except ImportError:
+    from urllib.request import build_opener, HTTPRedirectHandler, Request, urlopen
+    from urllib.error import HTTPError
+    from urllib.parse import urlencode
 
 # API version and unique software ID
 API_VERSION = 'DBC/Python v4.0.11'
@@ -55,7 +61,7 @@ class Client(object):
     def _load_file(self, captcha):
         if hasattr(captcha, 'read'):
             raw_captcha = captcha.read()
-        elif type(captcha) == bytearray:
+        elif isinstance(captcha, bytearray):
             raw_captcha = captcha
         elif os.path.isfile(captcha):
             raw_captcha = ''
@@ -67,9 +73,9 @@ class Client(object):
                 raw_captcha = f.read()
                 f.close()
         else:
-            f_stream = urllib.urlopen(captcha)
+            f_stream = urlopen(captcha)
             raw_captcha = f_stream.read()
-            
+
         if not len(raw_captcha):
             raise ValueError('CAPTCHA image is empty')
         elif imghdr.what(None, raw_captcha) is None:
@@ -79,7 +85,7 @@ class Client(object):
 
     def _log(self, cmd, msg=''):
         if self.is_verbose:
-            print '%d %s %s' % (time.time(), cmd, msg.rstrip())
+            print('%d %s %s' % (time.time(), cmd, msg.rstrip()))
         return self
 
     def close(self):
@@ -144,7 +150,7 @@ class HttpClient(Client):
 
     def __init__(self, *args):
         Client.__init__(self, *args)
-        self.opener = urllib2.build_opener(urllib2.HTTPRedirectHandler())
+        self.opener = build_opener(HTTPRedirectHandler())
 
     def _call(self, cmd, payload=None, headers=None):
         if headers is None:
@@ -152,19 +158,20 @@ class HttpClient(Client):
         headers['Accept'] = HTTP_RESPONSE_TYPE
         headers['User-Agent'] = API_VERSION
         if hasattr(payload, 'items'):
-            payload = urllib.urlencode(payload)
+            payload = urlencode(payload)
             self._log('SEND', '%s %d %s' % (cmd, len(payload), payload))
         if payload is not None:
             headers['Content-Length'] = len(payload)
         try:
-            response = self.opener.open(urllib2.Request(
+            response = self.opener.open(Request(
                 HTTP_BASE_URL + '/' + cmd.strip('/'),
                 data=payload,
                 headers=headers
             )).read()
-        except urllib2.HTTPError, e:
+        except HTTPError as e:
             if 403 == e.code:
-                raise AccessDeniedException('Access denied, please check your credentials and/or balance')
+                raise AccessDeniedException(
+                    'Access denied, please check your credentials and/or balance')
             elif 400 == e.code or 413 == e.code:
                 raise ValueError("CAPTCHA was rejected by the service, check if it's a valid image")
         else:
@@ -246,7 +253,7 @@ class SocketClient(Client):
             self.socket.settimeout(0)
             try:
                 self.socket.connect(host)
-            except socket.error, e:
+            except socket.error as e:
                 if errno.EINPROGRESS == e[0]:
                     pass
                 else:
@@ -280,7 +287,7 @@ class SocketClient(Client):
                             raise IOError('recv(): connection lost')
                         else:
                             response += s
-            except socket.error, e:
+            except socket.error as e:
                 if e[0] not in (errno.EAGAIN, errno.EINPROGRESS):
                     raise e
             if response.endswith(self.TERMINATOR):
@@ -301,10 +308,10 @@ class SocketClient(Client):
             try:
                 sock = self.connect()
                 response = self._sendrecv(sock, request)
-            except IOError, e:
+            except IOError as e:
                 sys.stderr.write(str(e) + "\n")
                 self.close()
-            except socket.error, e:
+            except socket.error as e:
                 sys.stderr.write(str(e) + "\n")
                 self.close()
                 raise IOError('Connection refused')
@@ -331,7 +338,8 @@ class SocketClient(Client):
                 elif 'invalid-captcha' == error:
                     raise ValueError('CAPTCHA is not a valid image')
                 elif 'service-overload' == error:
-                    raise ValueError('CAPTCHA was rejected due to service overload, try again later')
+                    raise ValueError(
+                        'CAPTCHA was rejected due to service overload, try again later')
                 else:
                     raise RuntimeError('API server error occured: %s' % error)
         except Exception as e:
@@ -373,7 +381,7 @@ if '__main__' == __name__:
     client = SocketClient(sys.argv[1], sys.argv[2])
     client.is_verbose = True
 
-    print 'Your balance is %s US cents' % client.get_balance()
+    print('Your balance is %s US cents' % client.get_balance())
 
     for fn in sys.argv[3:]:
         try:
@@ -385,7 +393,7 @@ if '__main__' == __name__:
             captcha = None
 
         if captcha:
-            print 'CAPTCHA %d solved: %s' % (captcha['captcha'], captcha['text'])
+            print('CAPTCHA %d solved: %s' % (captcha['captcha'], captcha['text']))
 
             # Report as incorrectly solved if needed.  Make sure the CAPTCHA was
             # in fact incorrectly solved!
