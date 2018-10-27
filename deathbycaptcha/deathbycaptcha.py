@@ -61,7 +61,7 @@ class Client(object):
             raw_captcha = ''
             try:
                 f = open(captcha, 'rb')
-            except Exception, e:
+            except Exception as e:
                 raise e
             else:
                 raw_captcha = f.read()
@@ -334,7 +334,7 @@ class SocketClient(Client):
                     raise ValueError('CAPTCHA was rejected due to service overload, try again later')
                 else:
                     raise RuntimeError('API server error occured: %s' % error)
-        except Exception, e:
+        except Exception as e:
             self.socket_lock.acquire()
             self.close()
             self.socket_lock.release()
@@ -380,7 +380,7 @@ if '__main__' == __name__:
             # Put your CAPTCHA image file name or file-like object, and optional
             # solving timeout (in seconds) here:
             captcha = client.decode(fn, DEFAULT_TIMEOUT)
-        except Exception, e:
+        except Exception as e:
             sys.stderr.write('Failed uploading CAPTCHA: %s\n' % (e, ))
             captcha = None
 
@@ -391,5 +391,5 @@ if '__main__' == __name__:
             # in fact incorrectly solved!
             try:
                 client.report(captcha['captcha'])
-            except Exception, e:
+            except Exception as e:
                 sys.stderr.write('Failed reporting CAPTCHA: %s\n' % (e, ))
